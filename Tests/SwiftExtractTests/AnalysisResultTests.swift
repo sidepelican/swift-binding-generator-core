@@ -317,6 +317,91 @@ struct AnalysisResultSuite {
     #expect(coalescingNilOperator.apiKind == .binaryOperator)
   }
 
+  @Test func prefixAndPostfixOperators() throws {
+    let result = try analyze(
+      sources: [
+        (
+          "/fake/Source.swift",
+          """
+          postfix operator ++
+          postfix operator --
+
+          public struct Score {
+              public var value: Int
+
+              public static prefix func - (value: Score) -> Score {
+                Score(value: -value.value)
+              }
+
+              public static prefix func ~(value: Score) -> Score {
+                Score(value: ~value.value)
+              }
+
+              public static postfix func ++ (value: Score) -> Score {
+                Score(value: value.value + 1)
+              }
+
+              public static postfix func --(value: Score) -> Score {
+                Score(value: value.value - 1)
+              }
+
+              public static func *(left: Score, right: Score) -> Score {
+                Score(value: left.value * right.value)
+              }
+          }
+          """
+        )
+      ],
+      moduleName: "Aquarium",
+    )
+
+    let score = try #require(result.extractedTypes["Score"])
+    let kinds = Dictionary(uniqueKeysWithValues: score.methods.map { ($0.name, $0.apiKind) })
+
+    // Whether or not the operator name is followed by whitespace, the modifier decides the kind.
+    #expect(kinds["-"] == .prefixOperator)
+    #expect(kinds["~"] == .prefixOperator)
+    #expect(kinds["++"] == .postfixOperator)
+    #expect(kinds["--"] == .postfixOperator)
+    #expect(kinds["*"] == .binaryOperator)
+  }
+
+  @Test func fileScopeOperators() throws {
+    let result = try analyze(
+      sources: [
+        (
+          "/fake/Source.swift",
+          """
+          postfix operator ++
+
+          public struct Score {
+              public var value: Int
+          }
+
+          public func * (left: Int, right: Score) -> Score {
+            Score(value: left * right.value)
+          }
+
+          public prefix func - (value: Score) -> Score {
+            Score(value: -value.value)
+          }
+
+          public postfix func ++ (value: Score) -> Score {
+            Score(value: value.value + 1)
+          }
+          """
+        )
+      ],
+      moduleName: "Aquarium",
+    )
+
+    let kinds = Dictionary(uniqueKeysWithValues: result.extractedGlobalFuncs.map { ($0.name, $0.apiKind) })
+
+    #expect(kinds["*"] == .binaryOperator)
+    #expect(kinds["-"] == .prefixOperator)
+    #expect(kinds["++"] == .postfixOperator)
+  }
+
   // ==== -----------------------------------------------------------------------
   // MARK: Effect specifiers (throws / async)
 

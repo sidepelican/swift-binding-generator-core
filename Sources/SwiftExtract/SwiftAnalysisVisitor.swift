@@ -39,12 +39,14 @@ final class SwiftAnalysisVisitor {
 
   private static func operatorKind(_ node: FunctionDeclSyntax) -> SwiftAPIKind? {
     switch node.name.tokenKind {
-    case .binaryOperator:
+    case .binaryOperator, .prefixOperator, .postfixOperator:
+      if node.modifiers.contains(where: { $0.name.tokenKind == .keyword(.prefix) }) {
+        return .prefixOperator
+      }
+      if node.modifiers.contains(where: { $0.name.tokenKind == .keyword(.postfix) }) {
+        return .postfixOperator
+      }
       return .binaryOperator
-    case .prefixOperator:
-      return .prefixOperator
-    case .postfixOperator:
-      return .postfixOperator
     default:
       return nil
     }
@@ -364,12 +366,7 @@ final class SwiftAnalysisVisitor {
       return
     }
 
-    let apiKind: SwiftAPIKind =
-      if typeContext != nil && Self.operatorKind(node) != nil {
-        Self.operatorKind(node)!
-      } else {
-        .function
-      }
+    let apiKind: SwiftAPIKind = Self.operatorKind(node) ?? .function
 
     let extracted = ExtractedFunc(
       module: analyzer.swiftModuleName,
